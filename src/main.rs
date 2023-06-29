@@ -17,6 +17,7 @@ const ARENA_HEIGHT: f32 = 400.;
 #[derive(Component)]
 struct Collider;
 
+#[derive(Clone, Copy, PartialEq)]
 enum Sides {
     Left,
     Right,
@@ -39,7 +40,15 @@ struct Score {
 }
 
 #[derive(Component)]
-struct ScoreText;
+struct ScoreText {
+    side: Sides,
+}
+
+// scoreboard update event
+#[derive(Component)]
+struct ScoreEvent {
+    side: Sides,
+}
 
 fn main() {
     let window = WindowPlugin {
@@ -56,8 +65,9 @@ fn main() {
     App::new()
         .add_plugins(DefaultPlugins.set(window))
         .add_startup_system(setup)
-        .add_systems((paddle_movement, ball_movement))
+        .add_systems((paddle_movement, ball_movement, update_scoreboard))
         .insert_resource(Score { left: 0, right: 0 })
+        .add_event::<ScoreEvent>()
         .run();
 }
 
@@ -155,7 +165,7 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>, score: Res<Scor
             },
             ..default()
         },
-        ScoreText,
+        ScoreText { side: Sides::Left },
     ));
 
     // Right score
@@ -168,7 +178,7 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>, score: Res<Scor
             },
             ..default()
         },
-        ScoreText,
+        ScoreText { side: Sides::Right },
     ));
 }
 
@@ -212,8 +222,7 @@ fn paddle_movement(
 fn ball_movement(
     mut ball_query: Query<(&mut Ball, &mut Transform), Without<Paddle>>,
     paddle_query: Query<(&Paddle, &Transform)>,
-    mut score: ResMut<Score>,
-    mut scoreboard_text: Query<&mut Text, With<ScoreText>>,
+    mut score_event: EventWriter<ScoreEvent>,
 ) {
     let (mut ball, mut ball_transform) = ball_query.single_mut();
 
@@ -227,20 +236,16 @@ fn ball_movement(
     // If the ball goes off the left or right edges, reset it
     if ball_transform.translation.x < -ARENA_WIDTH / 2. {
         info!("Right player scores!");
-        score.right += 1;
         // Update scoreboard
-        for mut text in scoreboard_text.iter_mut() {
-            text.sections[0].value = score.right.to_string();
-        }
+        score_event.send(ScoreEvent { side: Sides::Right });
+
         ball_transform.translation = Vec3::new(0.0, 0.0, 3.0);
         ball.velocity = Vec2::new(STARTING_BALL_SPEED, STARTING_BALL_SPEED);
     } else if ball_transform.translation.x > ARENA_WIDTH / 2. {
         info!("Left player scores!");
-        score.left += 1;
         // Update scoreboard
-        for mut text in scoreboard_text.iter_mut() {
-            text.sections[0].value = score.left.to_string();
-        }
+        score_event.send(ScoreEvent { side: Sides::Left });
+
         ball_transform.translation = Vec3::new(0.0, 0.0, 3.0);
         ball.velocity = Vec2::new(-STARTING_BALL_SPEED, -STARTING_BALL_SPEED);
     }
@@ -285,4 +290,31 @@ fn ball_movement(
 
     // Move the ball according to its velocity
     ball_transform.translation += ball.velocity.extend(0.0);
+}
+
+fn update_scoreboard(
+    mut score_event: EventReader<ScoreEvent>,
+    mut scoreboard: ResMut<Score>,
+    mut query: Query<(&mut Text, &ScoreText)>,
+) {
+    if !score_event.is_empty() {
+        let side = score_event.iter().next().unwrap().side;
+        score_event.clear();
+        for (mut text, score_text) in query.iter_mut() {
+            match score_text.side {
+                Sides::Left => {
+                    if side == Sides::Left {
+                        scoreboard.left += 1;
+                        text.sections[0].value = scoreboard.left.to_string();
+                    }
+                }
+                Sides::Right => {
+                    if side == Sides::Right {
+                        scoreboard.right += 1;
+                        text.sections[0].value = scoreboard.right.to_string();
+                    }
+                }
+            }
+        }
+    }
 }
