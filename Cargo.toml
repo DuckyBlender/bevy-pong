@@ -8,7 +8,7 @@ edition = "2021"
 [dependencies]
 bevy = { version = "0.10.1", features = ["dynamic_linking"] }
 bevy_egui = "0.20.3"
-quinn = "0.10.1"
+tokio = "1.29.0"
 
 # Enable a small amount of optimization in debug mode
 [profile.dev]

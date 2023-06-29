@@ -1,7 +1,7 @@
 use bevy::prelude::*;
 
 // import consts from main.rs
-use crate::{ARENA_HEIGHT, ARENA_WIDTH, BALL_MAX_ANGLE_MULTIPLIER, BALL_SIZE, BALL_SPEED, Ball, Collider, PADDLE_OFFSET, PADDLE_SIZE, PADDLE_SPEED, Paddle, STARTING_BALL_SPEED, Score, ScoreEvent, ScoreText, Sides};
+use crate::*;
 
 pub fn start_game(mut commands: Commands, asset_server: Res<AssetServer>, score: Res<Score>) {
     // Left paddle
@@ -20,6 +20,7 @@ pub fn start_game(mut commands: Commands, asset_server: Res<AssetServer>, score:
         },
         Paddle { side: Sides::Left },
         Collider,
+        Game,
     ));
 
     // Right paddle
@@ -38,6 +39,7 @@ pub fn start_game(mut commands: Commands, asset_server: Res<AssetServer>, score:
         },
         Paddle { side: Sides::Right },
         Collider,
+        Game,
     ));
 
     // Ball
@@ -61,6 +63,7 @@ pub fn start_game(mut commands: Commands, asset_server: Res<AssetServer>, score:
             velocity: Vec2::new(STARTING_BALL_SPEED, STARTING_BALL_SPEED),
         },
         Collider,
+        Game,
     ));
 
     let font = asset_server.load("fonts/blocky.ttf");
@@ -81,6 +84,7 @@ pub fn start_game(mut commands: Commands, asset_server: Res<AssetServer>, score:
             ..default()
         },
         ScoreText { side: Sides::Left },
+        Game,
     ));
 
     // Right score
@@ -94,6 +98,7 @@ pub fn start_game(mut commands: Commands, asset_server: Res<AssetServer>, score:
             ..default()
         },
         ScoreText { side: Sides::Right },
+        Game,
     ));
 }
 
@@ -254,6 +259,22 @@ pub fn score_logic(
             Sides::Right => {
                 transform.translation = Vec3::new(ARENA_WIDTH / 2. - PADDLE_OFFSET, 0.0, 1.0);
             }
+        }
+    }
+}
+
+pub fn esc_check(
+    mut commands: Commands,
+    query: Query<Entity, With<Game>>,
+    keyboard: Res<Input<KeyCode>>,
+    mut state: ResMut<NextState<GameState>>,
+) {
+    if keyboard.just_pressed(KeyCode::Escape) {
+        // If esc is pressed, despawn all entities with a collider
+
+        state.set(GameState::Menu);
+        for entity in query.iter() {
+            commands.entity(entity).despawn();
         }
     }
 }

@@ -16,10 +16,13 @@ pub const ARENA_WIDTH: f32 = 800.;
 pub const ARENA_HEIGHT: f32 = 400.;
 
 mod game;
-use game::{ball_movement, paddle_movement, score_logic, start_game};
+use game::*;
 
 mod menu;
-use menu::{close_menu, menu_system};
+use menu::*;
+
+// mod multiplayer;
+// use multiplayer::*;
 
 #[derive(States, Debug, Clone, Eq, PartialEq, Hash, Default)]
 pub enum GameState {
@@ -65,6 +68,9 @@ pub struct ScoreEvent {
     side: Sides,
 }
 
+#[derive(Component)]
+pub struct Game;
+
 fn main() {
     let window = WindowPlugin {
         primary_window: Some(Window {
@@ -87,11 +93,15 @@ fn main() {
         // MENU
         .add_systems((menu_system,).in_set(OnUpdate(GameState::Menu)))
         .add_system(close_menu.in_schedule(OnExit(GameState::Menu)))
-        // PLAYING
+        // Singleplayer
         .add_system(start_game.in_schedule(OnEnter(GameState::Singleplayer)))
         .add_systems(
-            (paddle_movement, ball_movement, score_logic).in_set(OnUpdate(GameState::Singleplayer)),
+            (paddle_movement, ball_movement, score_logic, esc_check)
+                .in_set(OnUpdate(GameState::Singleplayer)),
         )
+        // Multiplayer
+        // .add_system(setup_server.in_schedule(OnEnter(GameState::Multiplayer)))
+        // .add_systems((send_data,))
         .run();
 }
 
