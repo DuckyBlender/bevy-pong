@@ -5,8 +5,11 @@ use bevy::prelude::*;
 const PADDLE_SIZE: Vec2 = Vec2::new(BALL_SIZE, 50.);
 const PADDLE_SPEED: f32 = 3.;
 const PADDLE_OFFSET: f32 = BALL_SIZE * 5.;
+
 const BALL_SPEED: f32 = 3.;
+const STARTING_BALL_SPEED: f32 = BALL_SPEED / 3.;
 const BALL_SIZE: f32 = 10.;
+const BALL_MAX_ANGLE_MULTIPLIER: f32 = 6.;
 
 const ARENA_WIDTH: f32 = 800.;
 const ARENA_HEIGHT: f32 = 400.;
@@ -14,20 +17,29 @@ const ARENA_HEIGHT: f32 = 400.;
 #[derive(Component)]
 struct Collider;
 
-enum WhichPaddle {
+enum Sides {
     Left,
     Right,
 }
 
 #[derive(Component)]
 struct Paddle {
-    side: WhichPaddle,
+    side: Sides,
 }
 
 #[derive(Component)]
 struct Ball {
     velocity: Vec2,
 }
+
+#[derive(Resource)]
+struct Score {
+    left: u32,
+    right: u32,
+}
+
+#[derive(Component)]
+struct ScoreText;
 
 fn main() {
     let window = WindowPlugin {
@@ -44,11 +56,12 @@ fn main() {
     App::new()
         .add_plugins(DefaultPlugins.set(window))
         .add_startup_system(setup)
-        .add_systems((paddle_movement, ball_movement, print_ball_location))
+        .add_systems((paddle_movement, ball_movement))
+        .insert_resource(Score { left: 0, right: 0 })
         .run();
 }
 
-fn setup(mut commands: Commands) {
+fn setup(mut commands: Commands, asset_server: Res<AssetServer>, score: Res<Score>) {
     // Camera
     commands.spawn(Camera2dBundle::default());
 
@@ -80,9 +93,7 @@ fn setup(mut commands: Commands) {
             },
             ..default()
         },
-        Paddle {
-            side: WhichPaddle::Left,
-        },
+        Paddle { side: Sides::Left },
         Collider,
     ));
 
@@ -100,9 +111,7 @@ fn setup(mut commands: Commands) {
             },
             ..default()
         },
-        Paddle {
-            side: WhichPaddle::Right,
-        },
+        Paddle { side: Sides::Right },
         Collider,
     ));
 
@@ -124,21 +133,45 @@ fn setup(mut commands: Commands) {
             ..default()
         },
         Ball {
-            velocity: Vec2::new(BALL_SPEED, BALL_SPEED),
+            velocity: Vec2::new(STARTING_BALL_SPEED, STARTING_BALL_SPEED),
         },
         Collider,
     ));
+
+    let font = asset_server.load("fonts/blocky.ttf");
+    let text_style = TextStyle {
+        font,
+        font_size: 60.0,
+        color: Color::WHITE,
+    };
+
+    // Left score
+    commands.spawn((
+        Text2dBundle {
+            text: Text::from_section(score.left.to_string(), text_style.clone()),
+            transform: Transform {
+                translation: Vec3::new(-ARENA_WIDTH / 4., ARENA_HEIGHT / 3., 2.),
+                ..default()
+            },
+            ..default()
+        },
+        ScoreText,
+    ));
+
+    // Right score
+    commands.spawn((
+        Text2dBundle {
+            text: Text::from_section(score.right.to_string(), text_style),
+            transform: Transform {
+                translation: Vec3::new(ARENA_WIDTH / 4., ARENA_HEIGHT / 3., 2.),
+                ..default()
+            },
+            ..default()
+        },
+        ScoreText,
+    ));
 }
 
-fn print_ball_location(mut ball_query: Query<(&Ball, &Transform)>) {
-    let ball = ball_query.single_mut();
-    info!(
-        "Ball: ({}, {}),",
-        ball.1.translation.x, ball.1.translation.y
-    );
-}
-
-// paddle movement, WS for left paddle, up/down for right paddle
 fn paddle_movement(
     keyboard_input: Res<Input<KeyCode>>,
     mut query: Query<(&Paddle, &mut Transform)>,
@@ -146,7 +179,7 @@ fn paddle_movement(
     for (paddle, mut transform) in query.iter_mut() {
         let mut offset = 0.0;
         match paddle.side {
-            WhichPaddle::Left => {
+            Sides::Left => {
                 if keyboard_input.pressed(KeyCode::W)
                     && transform.translation.y + PADDLE_SIZE.y / 2. < ARENA_HEIGHT / 2.
                 // check if paddle is going out of bounds
@@ -159,7 +192,7 @@ fn paddle_movement(
                     offset -= PADDLE_SPEED;
                 }
             }
-            WhichPaddle::Right => {
+            Sides::Right => {
                 if keyboard_input.pressed(KeyCode::Up)
                     && transform.translation.y + PADDLE_SIZE.y / 2. < ARENA_HEIGHT / 2.
                 {
@@ -179,20 +212,37 @@ fn paddle_movement(
 fn ball_movement(
     mut ball_query: Query<(&mut Ball, &mut Transform), Without<Paddle>>,
     paddle_query: Query<(&Paddle, &Transform)>,
+    mut score: ResMut<Score>,
+    mut scoreboard_text: Query<&mut Text, With<ScoreText>>,
 ) {
     let (mut ball, mut ball_transform) = ball_query.single_mut();
 
-    // Bounce the ball off walls
+    // Bounce the ball off top and bottom walls
     if ball_transform.translation.y < -ARENA_HEIGHT / 2. + BALL_SIZE / 2.
         || ball_transform.translation.y > ARENA_HEIGHT / 2. - BALL_SIZE / 2.
     {
         ball.velocity.y = -ball.velocity.y;
     }
 
-    if ball_transform.translation.x < -ARENA_WIDTH / 2. + BALL_SIZE / 2.
-        || ball_transform.translation.x > ARENA_WIDTH / 2. - BALL_SIZE / 2.
-    {
-        ball.velocity.x = -ball.velocity.x;
+    // If the ball goes off the left or right edges, reset it
+    if ball_transform.translation.x < -ARENA_WIDTH / 2. {
+        info!("Right player scores!");
+        score.right += 1;
+        // Update scoreboard
+        for mut text in scoreboard_text.iter_mut() {
+            text.sections[0].value = score.right.to_string();
+        }
+        ball_transform.translation = Vec3::new(0.0, 0.0, 3.0);
+        ball.velocity = Vec2::new(STARTING_BALL_SPEED, STARTING_BALL_SPEED);
+    } else if ball_transform.translation.x > ARENA_WIDTH / 2. {
+        info!("Left player scores!");
+        score.left += 1;
+        // Update scoreboard
+        for mut text in scoreboard_text.iter_mut() {
+            text.sections[0].value = score.left.to_string();
+        }
+        ball_transform.translation = Vec3::new(0.0, 0.0, 3.0);
+        ball.velocity = Vec2::new(-STARTING_BALL_SPEED, -STARTING_BALL_SPEED);
     }
 
     // Bounce the ball off paddles. Change the angle based on where it hits the paddle.
@@ -208,19 +258,26 @@ fn ball_movement(
             && ball_transform.translation.y > paddle_y
         {
             match paddle.side {
-                WhichPaddle::Left => {
+                Sides::Left => {
+                    // If this is the first time, accelerate the ball
+                    if ball.velocity.x == STARTING_BALL_SPEED {
+                        ball.velocity.x = BALL_SPEED
+                    }
                     ball.velocity.x = -ball.velocity.x;
                     ball.velocity.y = (ball_transform.translation.y
                         - paddle_transform.translation.y)
                         / PADDLE_SIZE.y
-                        * 5.;
+                        * BALL_MAX_ANGLE_MULTIPLIER;
                 }
-                WhichPaddle::Right => {
+                Sides::Right => {
+                    if ball.velocity.x == STARTING_BALL_SPEED {
+                        ball.velocity.x = BALL_SPEED
+                    }
                     ball.velocity.x = -ball.velocity.x;
                     ball.velocity.y = (ball_transform.translation.y
                         - paddle_transform.translation.y)
                         / PADDLE_SIZE.y
-                        * 5.;
+                        * BALL_MAX_ANGLE_MULTIPLIER;
                 }
             }
         }
