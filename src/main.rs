@@ -297,22 +297,24 @@ fn update_scoreboard(
     mut scoreboard: ResMut<Score>,
     mut query: Query<(&mut Text, &ScoreText)>,
 ) {
-    if !score_event.is_empty() {
-        let side = score_event.iter().next().unwrap().side;
-        score_event.clear();
-        for (mut text, score_text) in query.iter_mut() {
-            match score_text.side {
-                Sides::Left => {
-                    if side == Sides::Left {
-                        scoreboard.left += 1;
-                        text.sections[0].value = scoreboard.left.to_string();
-                    }
+    if score_event.is_empty() {
+        return;
+    }
+
+    let side = score_event.iter().next().unwrap().side;
+    score_event.clear();
+    for (mut text, score_text) in query.iter_mut() {
+        match score_text.side {
+            Sides::Left => {
+                if side == Sides::Left {
+                    scoreboard.left += 1;
+                    text.sections[0].value = scoreboard.left.to_string();
                 }
-                Sides::Right => {
-                    if side == Sides::Right {
-                        scoreboard.right += 1;
-                        text.sections[0].value = scoreboard.right.to_string();
-                    }
+            }
+            Sides::Right => {
+                if side == Sides::Right {
+                    scoreboard.right += 1;
+                    text.sections[0].value = scoreboard.right.to_string();
                 }
             }
         }
