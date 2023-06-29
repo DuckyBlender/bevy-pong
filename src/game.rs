@@ -1,7 +1,7 @@
 use bevy::prelude::*;
 
 // import consts from main.rs
-use crate::*;
+use crate::{ARENA_HEIGHT, ARENA_WIDTH, BALL_MAX_ANGLE_MULTIPLIER, BALL_SIZE, BALL_SPEED, Ball, Collider, PADDLE_OFFSET, PADDLE_SIZE, PADDLE_SPEED, Paddle, STARTING_BALL_SPEED, Score, ScoreEvent, ScoreText, Sides};
 
 pub fn start_game(mut commands: Commands, asset_server: Res<AssetServer>, score: Res<Score>) {
     // Left paddle

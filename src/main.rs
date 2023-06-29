@@ -1,6 +1,7 @@
 // Classic pong game
 
 use bevy::prelude::*;
+use bevy_egui::{egui, EguiContexts, EguiPlugin};
 
 pub const PADDLE_SIZE: Vec2 = Vec2::new(BALL_SIZE, 50.);
 pub const PADDLE_SPEED: f32 = 3.;
@@ -15,16 +16,17 @@ pub const ARENA_WIDTH: f32 = 800.;
 pub const ARENA_HEIGHT: f32 = 400.;
 
 mod game;
-use game::*;
+use game::{ball_movement, paddle_movement, score_logic, start_game};
 
 mod menu;
-use menu::*;
+use menu::{close_menu, menu_system};
 
 #[derive(States, Debug, Clone, Eq, PartialEq, Hash, Default)]
 pub enum GameState {
-    Menu,
     #[default]
-    Playing,
+    Menu,
+    Singleplayer,
+    Multiplayer,
 }
 
 #[derive(Component)]
@@ -77,16 +79,19 @@ fn main() {
 
     App::new()
         .add_plugins(DefaultPlugins.set(window))
+        .add_plugin(EguiPlugin)
         .add_startup_system(setup_common)
         .insert_resource(Score { left: 0, right: 0 })
         .add_event::<ScoreEvent>()
         .add_state::<GameState>()
         // MENU
-        .add_system(startup_menu.in_schedule(OnEnter(GameState::Menu)))
-        // .add_systems((listen_menu))
+        .add_systems((menu_system,).in_set(OnUpdate(GameState::Menu)))
+        .add_system(close_menu.in_schedule(OnExit(GameState::Menu)))
         // PLAYING
-        .add_system(start_game.in_schedule(OnEnter(GameState::Playing)))
-        .add_systems((paddle_movement, ball_movement, score_logic))
+        .add_system(start_game.in_schedule(OnEnter(GameState::Singleplayer)))
+        .add_systems(
+            (paddle_movement, ball_movement, score_logic).in_set(OnUpdate(GameState::Singleplayer)),
+        )
         .run();
 }
 
