@@ -1,2 +1,2 @@
 # bevy-pong
-[WIP] Multiplayer pong game made in Bevy
+Multiplayer pong game made in Bevy. Multiplayer support will be added in the future, currently I don't have much experience with multiplayer networking...
